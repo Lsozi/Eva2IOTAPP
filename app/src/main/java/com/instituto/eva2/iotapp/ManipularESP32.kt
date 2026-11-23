@@ -8,18 +8,18 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.database.FirebaseDatabase
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class ManipularESP32 : AppCompatActivity() {
 
-    // Objeto donde se recibirá el objeto "usu".
     private var usu: Usuario? = null
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -44,7 +44,7 @@ class ManipularESP32 : AppCompatActivity() {
         botonApagarAlarma(btnoff)
         volver(btnvolman)
         desactivarFlecha()
-    } // Cierra la función "onCreate".
+    }
 
     fun botonApagarAlarma(btnoff: Button) {
         btnoff.setOnClickListener {
@@ -54,13 +54,31 @@ class ManipularESP32 : AppCompatActivity() {
                 FirebaseDatabase.getInstance().reference
             }
 
-            // Actualiza la alarma a false en Firebase
             rootRef.child("alarma").setValue(false)
             rootRef.child("admin").child("alarma").setValue(false)
 
-            Toast.makeText(this@ManipularESP32, "Alarma del ESP32 APAGADA", Toast.LENGTH_SHORT).show()
+            val dateFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
+            val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+            val currentDate = dateFormat.format(Date())
+            val currentTime = timeFormat.format(Date())
+            val username = usu?.nombre ?: "Usuario"
+
+            val actionMap = mapOf(
+                "fecha" to currentDate,
+                "hora" to currentTime,
+                "usuario" to username,
+                "accion" to "Alarma Apagada Manualmente",
+                "temperatura" to ""
+            )
+            rootRef.child("acciones").push().setValue(actionMap)
+
+            Toast.makeText(
+                this@ManipularESP32,
+                "Orden de apagado enviada (se sincronizará automáticamente si no hay conexión)",
+                Toast.LENGTH_LONG
+            ).show()
         }
-    } // Cierra la función "botonApagarAlarma".
+    }
 
     fun volver(btnvolman: Button) {
         btnvolman.setOnClickListener {
@@ -68,12 +86,10 @@ class ManipularESP32 : AppCompatActivity() {
             intent.putExtra("usu", usu)
             startActivity(intent)
         }
-    } // Cierra la función "volver".
+    }
 
     private fun desactivarFlecha() {
         onBackPressedDispatcher.addCallback(this) {
-            // finish()
         }
-    } // Cierra la función "desactivarFlecha".
-
-} // Cierra la clase "ManipularESP32".
+    }
+}

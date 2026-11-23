@@ -8,21 +8,21 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 
 class Acciones : AppCompatActivity() {
 
-    // Objeto donde se recibirá el objeto "usu".
     private var usu: Usuario? = null
+    private lateinit var rootRef: DatabaseReference
+    private var valueEventListener: ValueEventListener? = null
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -41,69 +41,67 @@ class Acciones : AppCompatActivity() {
             intent.getSerializableExtra("usu") as? Usuario
         }
         cabecera.setText("Bienvenido(a) : " + usu?.nombre)
-        cargarAcciones()
-        volver(btnvolacc)
-        desactivarFlecha()
-    } // Cierra la función "onCreate".
 
-    fun cargarAcciones() {
-        val tvlistaacc = findViewById<TextView>(R.id.tvlistaacc)
-        val rootRef = try {
+        rootRef = try {
             FirebaseDatabase.getInstance("https://appfirebasehola-default-rtdb.firebaseio.com/").reference
         } catch (_: Exception) {
             FirebaseDatabase.getInstance().reference
         }
 
-        rootRef.addListenerForSingleValueEvent(object : ValueEventListener {
+        cargarAccionesEnTiempoReal()
+        volver(btnvolacc)
+        desactivarFlecha()
+    }
+
+    fun cargarAccionesEnTiempoReal() {
+        val tvlistaacc = findViewById<TextView>(R.id.tvlistaacc)
+
+        valueEventListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 var texto = ""
 
-                // Buscar nodos que contengan acciones en cualquier nivel (ej: admin/acciones)
-                val accionesNodes = mutableListOf<DataSnapshot>()
-                fun buscarAcciones(node: DataSnapshot) {
-                    if (node.hasChild("accion") || node.hasChild("fecha")) {
-                        accionesNodes.add(node)
-                    } else {
-                        for (child in node.children) {
-                            buscarAcciones(child)
-                        }
-                    }
-                }
-                buscarAcciones(snapshot)
-
-                for (x in accionesNodes) {
+                for (x in snapshot.children) {
                     val fec = x.child("fecha").getValue()?.toString() ?: ""
                     val hor = x.child("hora").getValue()?.toString() ?: ""
                     val usr = x.child("usuario").getValue()?.toString() ?: ""
                     val acc = x.child("accion").getValue()?.toString() ?: ""
                     val tem = x.child("temperatura").getValue()?.toString() ?: ""
-                    texto = "$fec $hor\n$usr : $acc ($tem °C)\n\n$texto"
+                    val tempStr = if (tem.isNotEmpty() && tem != "null") " ($tem °C)" else ""
+                    if (fec.isNotEmpty() || acc.isNotEmpty()) {
+                        texto = "$fec $hor\n$usr : $acc$tempStr\n\n$texto"
+                    }
                 }
 
                 if (texto.isEmpty()) {
                     texto = "Sin acciones registradas en Firebase"
                 }
                 tvlistaacc.text = texto
-            } // Cierra el "onDataChange".
+            }
 
             override fun onCancelled(error: DatabaseError) {
                 Toast.makeText(this@Acciones, "Error Firebase: ${error.message}", Toast.LENGTH_SHORT).show()
-            } // Cierra el "onCancelled".
-        })
-    } // Cierra la función "cargarAcciones".
+            }
+        }
+        rootRef.child("acciones").addValueEventListener(valueEventListener!!)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        valueEventListener?.let {
+            rootRef.child("acciones").removeEventListener(it)
+        }
+    }
 
     fun volver(btnvolacc: Button) {
         btnvolacc.setOnClickListener {
-            var intent = Intent(this@Acciones, Menu::class.java)
+            val intent = Intent(this@Acciones, Menu::class.java)
             intent.putExtra("usu", usu)
             startActivity(intent)
         }
-    } // Cierra la función "volver".
+    }
 
     private fun desactivarFlecha() {
         onBackPressedDispatcher.addCallback(this) {
-            // finish()
         }
-    } // Cierra la función "desactivarFlecha".
-
-} // Cierra la clase "Acciones".
+    }
+}

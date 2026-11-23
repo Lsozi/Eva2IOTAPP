@@ -105,8 +105,9 @@ class Principal : AppCompatActivity() {
                         val dbPass = x.child("contraseña").getValue()?.toString()
                             ?: x.child("contrasena").getValue()?.toString()
                             ?: x.child("password").getValue()?.toString() ?: ""
+                        val dbSal = x.child("sal").getValue()?.toString() ?: ""
 
-                        if ((nom.equals(dbNombre, ignoreCase = true) || nom.equals(dbRut, ignoreCase = true)) && conTxt == dbPass) {
+                        if ((nom.equals(dbNombre, ignoreCase = true) || nom.equals(dbRut, ignoreCase = true)) && dbSal.isNotEmpty() && Seguridad.hashClave(conTxt, dbSal) == dbPass) {
                             estado = true
                             val usuObj = Usuario(
                                 rut = if (dbRut.isNotEmpty()) dbRut else dbNombre,

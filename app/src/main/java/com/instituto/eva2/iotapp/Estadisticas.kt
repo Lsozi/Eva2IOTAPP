@@ -8,21 +8,21 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 
 class Estadisticas : AppCompatActivity() {
 
-    // Objeto donde se recibirá el objeto "usu".
     private var usu: Usuario? = null
+    private lateinit var rootRef: DatabaseReference
+    private var statsListener: ValueEventListener? = null
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -41,10 +41,17 @@ class Estadisticas : AppCompatActivity() {
             intent.getSerializableExtra("usu") as? Usuario
         }
         cabecera.setText("Bienvenido(a) : " + usu?.nombre)
+
+        rootRef = try {
+            FirebaseDatabase.getInstance("https://appfirebasehola-default-rtdb.firebaseio.com/").reference
+        } catch (_: Exception) {
+            FirebaseDatabase.getInstance().reference
+        }
+
         cargarEstadisticas()
         volver(btnvolest)
         desactivarFlecha()
-    } // Cierra la función "onCreate".
+    }
 
     fun cargarEstadisticas() {
         val tvtemest = findViewById<TextView>(R.id.tvtemest)
@@ -52,63 +59,61 @@ class Estadisticas : AppCompatActivity() {
         val tvadvest = findViewById<TextView>(R.id.tvadvest)
         val tvpelest = findViewById<TextView>(R.id.tvpelest)
 
-        val rootRef = try {
-            FirebaseDatabase.getInstance("https://appfirebasehola-default-rtdb.firebaseio.com/").reference
-        } catch (_: Exception) {
-            FirebaseDatabase.getInstance().reference
-        }
-
-        rootRef.addListenerForSingleValueEvent(object : ValueEventListener {
+        statsListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                // Buscar el nodo que contenga 'temperaturaActual' o 'temperaturaMaxima' en cualquier nivel (ej: admin/estadisticas)
-                var statNode: DataSnapshot? = null
-                fun buscarEstadisticas(node: DataSnapshot) {
-                    if (node.hasChild("temperaturaActual") || node.hasChild("temperaturaMaxima")) {
-                        statNode = node
-                    } else {
-                        for (child in node.children) {
-                            if (statNode != null) break
-                            buscarEstadisticas(child)
+                if (!snapshot.exists() || !snapshot.hasChild("temperaturaActual")) {
+                    rootRef.child("admin").child("estadisticas").addListenerForSingleValueEvent(object : ValueEventListener {
+                        override fun onDataChange(adminSnapshot: DataSnapshot) {
+                            parseStats(adminSnapshot, tvtemest, tvmaxest, tvadvest, tvpelest)
                         }
-                    }
+                        override fun onCancelled(error: DatabaseError) {}
+                    })
+                    return
                 }
-                buscarEstadisticas(snapshot)
-
-                val target = statNode ?: snapshot
-                var tem = target.child("temperaturaActual").getValue()?.toString() ?: "0"
-                var max = target.child("temperaturaMaxima").getValue()?.toString() ?: "0"
-                var adv = target.child("alertasAdvertencia").getValue()?.toString() ?: "0"
-                var pel = target.child("alertasPeligro").getValue()?.toString() ?: "0"
-
-                if (tem == "null") tem = "0"
-                if (max == "null") max = "0"
-                if (adv == "null") adv = "0"
-                if (pel == "null") pel = "0"
-
-                tvtemest.text = "$tem °C"
-                tvmaxest.text = "$max °C"
-                tvadvest.text = adv
-                tvpelest.text = pel
-            } // Cierra el "onDataChange".
+                parseStats(snapshot, tvtemest, tvmaxest, tvadvest, tvpelest)
+            }
 
             override fun onCancelled(error: DatabaseError) {
                 Toast.makeText(this@Estadisticas, "Error Firebase: ${error.message}", Toast.LENGTH_SHORT).show()
-            } // Cierra el "onCancelled".
-        })
-    } // Cierra la función "cargarEstadisticas".
+            }
+        }
+        rootRef.child("estadisticas").addValueEventListener(statsListener!!)
+    }
+
+    private fun parseStats(snapshot: DataSnapshot, tvtem: TextView, tvmax: TextView, tvadv: TextView, tvpel: TextView) {
+        var tem = snapshot.child("temperaturaActual").getValue()?.toString() ?: "0"
+        var max = snapshot.child("temperaturaMaxima").getValue()?.toString() ?: "0"
+        var adv = snapshot.child("alertasAdvertencia").getValue()?.toString() ?: "0"
+        var pel = snapshot.child("alertasPeligro").getValue()?.toString() ?: "0"
+
+        if (tem == "null") tem = "0"
+        if (max == "null") max = "0"
+        if (adv == "null") adv = "0"
+        if (pel == "null") pel = "0"
+
+        tvtem.text = "$tem °C"
+        tvmax.text = "$max °C"
+        tvadv.text = adv
+        tvpel.text = pel
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        statsListener?.let {
+            rootRef.child("estadisticas").removeEventListener(it)
+        }
+    }
 
     fun volver(btnvolest: Button) {
         btnvolest.setOnClickListener {
-            var intent = Intent(this@Estadisticas, Menu::class.java)
+            val intent = Intent(this@Estadisticas, Menu::class.java)
             intent.putExtra("usu", usu)
             startActivity(intent)
         }
-    } // Cierra la función "volver".
+    }
 
     private fun desactivarFlecha() {
         onBackPressedDispatcher.addCallback(this) {
-            // finish()
         }
-    } // Cierra la función "desactivarFlecha".
-
-} // Cierra la clase "Estadisticas".
+    }
+}

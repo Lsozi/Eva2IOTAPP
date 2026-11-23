@@ -83,7 +83,10 @@ class CrearCuenta : AppCompatActivity() {
         usuarioData["email"] = ema
         usuarioData["cargo"] = car
         usuarioData["tipo"] = car
-        usuarioData["contraseña"] = con
+        // La contraseña NO se guarda en texto plano: se guarda su hash SHA-256 con sal.
+        val sal = Seguridad.generarSal()
+        usuarioData["contraseña"] = Seguridad.hashClave(con, sal)
+        usuarioData["sal"] = sal
 
         // Guardar bajo /Usuario/{rut} y /admin/Usuario/{rut}
         val userKey = if (rut.contains(".")) rut.replace(".", "_") else rut
